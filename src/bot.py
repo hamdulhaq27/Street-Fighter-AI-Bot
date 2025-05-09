@@ -1,295 +1,161 @@
 from command import Command
 import numpy as np
 from buttons import Buttons
+import tensorflow as tf
+from tensorflow.keras.models import load_model
+import joblib
+import os
+import pandas as pd  # Add pandas import
+
 class Bot:
 
     def __init__(self):
-        #< - v + < - v - v + > - > + Y
-        self.fire_code=["<","!<","v+<","!v+!<","v","!v","v+>","!v+!>",">+Y","!>+!Y"]
-        self.exe_code = 0
-        self.start_fire=True
-        self.remaining_code=[]
+        # Load the trained model and scaler
+        # Navigate to the parent directory to access model.h5 and scaler.pkl
+        parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        try:
+            self.model = load_model(os.path.join(parent_dir, 'model.h5'))
+            self.scaler = joblib.load(os.path.join(parent_dir, 'scaler.pkl'))
+            self.model_loaded = True
+            print("ML model successfully loaded!")
+        except Exception as e:
+            print(f"Error loading ML model: {e}")
+            self.model_loaded = False
+        
+        # Initialize command and buttons objects
         self.my_command = Command()
-        self.buttn= Buttons()
+        self.buttn = Buttons()
 
-    def fight(self,current_game_state,player):
-        #python Videos\gamebot-competition-master\PythonAPI\controller.py 1
-        if player=="1":
-            #print("1")
-            #v - < + v - < + B spinning
-
-            if( self.exe_code!=0  ):
-               self.run_command([],current_game_state.player1)
-            diff=current_game_state.player2.x_coord - current_game_state.player1.x_coord
-            if (  diff > 60 ) :
-                toss=np.random.randint(3)
-                if (toss==0):
-                    #self.run_command([">+^+Y",">+^+Y",">+^+Y","!>+!^+!Y"],current_game_state.player1)
-                    self.run_command([">","-","!>","v+>","-","!v+!>","v","-","!v","v+<","-","!v+!<","<+Y","-","!<+!Y"],current_game_state.player1)
-                elif ( toss==1 ):
-                    self.run_command([">+^+B",">+^+B","!>+!^+!B"],current_game_state.player1)
-                else: #fire
-                    self.run_command(["<","-","!<","v+<","-","!v+!<","v","-","!v","v+>","-","!v+!>",">+Y","-","!>+!Y"],current_game_state.player1)
-            elif (  diff < -60 ) :
-                toss=np.random.randint(3)
-                if (toss==0):#spinning
-                    #self.run_command(["<+^+Y","<+^+Y","<+^+Y","!<+!^+!Y"],current_game_state.player1)
-                    self.run_command(["<","-","!<","v+<","-","!v+!<","v","-","!v","v+>","-","!v+!>",">+Y","-","!>+!Y"],current_game_state.player1)
-                elif ( toss==1):#
-                    self.run_command(["<+^+B","<+^+B","!<+!^+!B"],current_game_state.player1)
-                else: #fire
-                    self.run_command([">","-","!>","v+>","-","!v+!>","v","-","!v","v+<","-","!v+!<","<+Y","-","!<+!Y"],current_game_state.player1)
+    def fight(self, current_game_state, player):
+        # Reset command for this frame
+        self.my_command = Command()
+        self.buttn = Buttons()
+        
+        try:
+            if self.model_loaded:
+                # Extract features from game state
+                features = self._extract_features(current_game_state)
+                
+                # Create a pandas DataFrame with the exact same column names used during training
+                # Using the exact column names from gameData.csv
+                feature_names = [
+                    'timer', 'p1_id', 'p1_health', 'p1_x', 'p1_y', 
+                    'p1_jumping', 'p1_crouching', 'p1_in_move', 'p1_move_id',
+                    'p2_id', 'p2_health', 'p2_x', 'p2_y', 
+                    'p2_jumping', 'p2_crouching', 'p2_in_move', 'p2_move_id',
+                    'p1_rel_x', 'p1_rel_y', 'p1_facing_opponent', 'p1_health_diff'
+                ]
+                features_df = pd.DataFrame([features], columns=feature_names)
+                
+                # Scale features using the same scaler used during training
+                scaled_features = self.scaler.transform(features_df)
+                
+                # Use the model to predict button presses
+                button_presses = self.model.predict(scaled_features, verbose=0)[0]
+                
+                # Convert predictions to button states (threshold of 0.5 for binary classification)
+                button_states = (button_presses > 0.3).astype(int)
+                
+                # Map predictions to button states
+                self._set_button_states(button_states)
             else:
-                toss=np.random.randint(2)  # anyFightActionIsTrue(current_game_state.player2.player_buttons)
-                if ( toss>=1 ):
-                    if (diff>0):
-                        self.run_command(["<","<","!<"],current_game_state.player1)
-                    else:
-                        self.run_command([">",">","!>"],current_game_state.player1)
-                else:
-                    self.run_command(["v+R","v+R","v+R","!v+!R"],current_game_state.player1)
-            self.my_command.player_buttons=self.buttn
-
-        elif player=="2":
-
-            if( self.exe_code!=0  ):
-               self.run_command([],current_game_state.player2)
-            diff=current_game_state.player1.x_coord - current_game_state.player2.x_coord
-            if (  diff > 60 ) :
-                toss=np.random.randint(3)
-                if (toss==0):
-                    #self.run_command([">+^+Y",">+^+Y",">+^+Y","!>+!^+!Y"],current_game_state.player2)
-                    self.run_command([">","-","!>","v+>","-","!v+!>","v","-","!v","v+<","-","!v+!<","<+Y","-","!<+!Y"],current_game_state.player2)
-                elif ( toss==1 ):
-                    self.run_command([">+^+B",">+^+B","!>+!^+!B"],current_game_state.player2)
-                else:
-                    self.run_command(["<","-","!<","v+<","-","!v+!<","v","-","!v","v+>","-","!v+!>",">+Y","-","!>+!Y"],current_game_state.player2)
-            elif ( diff < -60 ) :
-                toss=np.random.randint(3)
-                if (toss==0):
-                    #self.run_command(["<+^+Y","<+^+Y","<+^+Y","!<+!^+!Y"],current_game_state.player2)
-                    self.run_command(["<","-","!<","v+<","-","!v+!<","v","-","!v","v+>","-","!v+!>",">+Y","-","!>+!Y"],current_game_state.player2)
-                elif ( toss==1):
-                    self.run_command(["<+^+B","<+^+B","!<+!^+!B"],current_game_state.player2)
-                else:
-                    self.run_command([">","-","!>","v+>","-","!v+!>","v","-","!v","v+<","-","!v+!<","<+Y","-","!<+!Y"],current_game_state.player2)
-            else:
-                toss=np.random.randint(2)  # anyFightActionIsTrue(current_game_state.player2.player_buttons)
-                if ( toss>=1 ):
-                    if (diff<0):
-                        self.run_command(["<","<","!<"],current_game_state.player2)
-                    else:
-                        self.run_command([">",">","!>"],current_game_state.player2)
-                else:
-                    self.run_command(["v+R","v+R","v+R","!v+!R"],current_game_state.player2)
-            self.my_command.player2_buttons=self.buttn
-        return self.my_command
-
-
-
-    def run_command( self , com , player   ):
-
-        if self.exe_code-1==len(self.fire_code):
-            self.exe_code=0
-            self.start_fire=False
-            print ("compelete")
-            #exit()
-            # print ( "left:",player.player_buttons.left )
-            # print ( "right:",player.player_buttons.right )
-            # print ( "up:",player.player_buttons.up )
-            # print ( "down:",player.player_buttons.down )
-            # print ( "Y:",player.player_buttons.Y )
-
-        elif len(self.remaining_code)==0 :
-
-            self.fire_code=com
-            #self.my_command=Command()
-            self.exe_code+=1
-
-            self.remaining_code=self.fire_code[0:]
-
+                # Fallback to basic behavior if model isn't loaded
+                self._fallback_behavior(current_game_state)
+                
+        except Exception as e:
+            print(f"Error during prediction: {e}")
+            # Use fallback behavior if prediction fails
+            self._fallback_behavior(current_game_state)
+        
+        # Set buttons for the correct player
+        if player == "1":
+            self.my_command.player_buttons = self.buttn
         else:
-            self.exe_code+=1
-            if self.remaining_code[0]=="v+<":
-                self.buttn.down=True
-                self.buttn.left=True
-                print("v+<")
-            elif self.remaining_code[0]=="!v+!<":
-                self.buttn.down=False
-                self.buttn.left=False
-                print("!v+!<")
-            elif self.remaining_code[0]=="v+>":
-                self.buttn.down=True
-                self.buttn.right=True
-                print("v+>")
-            elif self.remaining_code[0]=="!v+!>":
-                self.buttn.down=False
-                self.buttn.right=False
-                print("!v+!>")
-
-            elif self.remaining_code[0]==">+Y":
-                self.buttn.Y= True #not (player.player_buttons.Y)
-                self.buttn.right=True
-                print(">+Y")
-            elif self.remaining_code[0]=="!>+!Y":
-                self.buttn.Y= False #not (player.player_buttons.Y)
-                self.buttn.right=False
-                print("!>+!Y")
-
-            elif self.remaining_code[0]=="<+Y":
-                self.buttn.Y= True #not (player.player_buttons.Y)
-                self.buttn.left=True
-                print("<+Y")
-            elif self.remaining_code[0]=="!<+!Y":
-                self.buttn.Y= False #not (player.player_buttons.Y)
-                self.buttn.left=False
-                print("!<+!Y")
-
-            elif self.remaining_code[0]== ">+^+L" :
-                self.buttn.right=True
-                self.buttn.up=True
-                self.buttn.L= not (player.player_buttons.L)
-                print(">+^+L")
-            elif self.remaining_code[0]== "!>+!^+!L" :
-                self.buttn.right=False
-                self.buttn.up=False
-                self.buttn.L= False #not (player.player_buttons.L)
-                print("!>+!^+!L")
-
-            elif self.remaining_code[0]== ">+^+Y" :
-                self.buttn.right=True
-                self.buttn.up=True
-                self.buttn.Y= not (player.player_buttons.Y)
-                print(">+^+Y")
-            elif self.remaining_code[0]== "!>+!^+!Y" :
-                self.buttn.right=False
-                self.buttn.up=False
-                self.buttn.Y= False #not (player.player_buttons.L)
-                print("!>+!^+!Y")
-
-
-            elif self.remaining_code[0]== ">+^+R" :
-                self.buttn.right=True
-                self.buttn.up=True
-                self.buttn.R= not (player.player_buttons.R)
-                print(">+^+R")
-            elif self.remaining_code[0]== "!>+!^+!R" :
-                self.buttn.right=False
-                self.buttn.up=False
-                self.buttn.R= False #ot (player.player_buttons.R)
-                print("!>+!^+!R")
-
-            elif self.remaining_code[0]== ">+^+A" :
-                self.buttn.right=True
-                self.buttn.up=True
-                self.buttn.A= not (player.player_buttons.A)
-                print(">+^+A")
-            elif self.remaining_code[0]== "!>+!^+!A" :
-                self.buttn.right=False
-                self.buttn.up=False
-                self.buttn.A= False #not (player.player_buttons.A)
-                print("!>+!^+!A")
-
-            elif self.remaining_code[0]== ">+^+B" :
-                self.buttn.right=True
-                self.buttn.up=True
-                self.buttn.B= not (player.player_buttons.B)
-                print(">+^+B")
-            elif self.remaining_code[0]== "!>+!^+!B" :
-                self.buttn.right=False
-                self.buttn.up=False
-                self.buttn.B= False #not (player.player_buttons.A)
-                print("!>+!^+!B")
-
-            elif self.remaining_code[0]== "<+^+L" :
-                self.buttn.left=True
-                self.buttn.up=True
-                self.buttn.L= not (player.player_buttons.L)
-                print("<+^+L")
-            elif self.remaining_code[0]== "!<+!^+!L" :
-                self.buttn.left=False
-                self.buttn.up=False
-                self.buttn.L= False  #not (player.player_buttons.Y)
-                print("!<+!^+!L")
-
-            elif self.remaining_code[0]== "<+^+Y" :
-                self.buttn.left=True
-                self.buttn.up=True
-                self.buttn.Y= not (player.player_buttons.Y)
-                print("<+^+Y")
-            elif self.remaining_code[0]== "!<+!^+!Y" :
-                self.buttn.left=False
-                self.buttn.up=False
-                self.buttn.Y= False  #not (player.player_buttons.Y)
-                print("!<+!^+!Y")
-
-            elif self.remaining_code[0]== "<+^+R" :
-                self.buttn.left=True
-                self.buttn.up=True
-                self.buttn.R= not (player.player_buttons.R)
-                print("<+^+R")
-            elif self.remaining_code[0]== "!<+!^+!R" :
-                self.buttn.left=False
-                self.buttn.up=False
-                self.buttn.R= False  #not (player.player_buttons.Y)
-                print("!<+!^+!R")
-
-            elif self.remaining_code[0]== "<+^+A" :
-                self.buttn.left=True
-                self.buttn.up=True
-                self.buttn.A= not (player.player_buttons.A)
-                print("<+^+A")
-            elif self.remaining_code[0]== "!<+!^+!A" :
-                self.buttn.left=False
-                self.buttn.up=False
-                self.buttn.A= False  #not (player.player_buttons.Y)
-                print("!<+!^+!A")
-
-            elif self.remaining_code[0]== "<+^+B" :
-                self.buttn.left=True
-                self.buttn.up=True
-                self.buttn.B= not (player.player_buttons.B)
-                print("<+^+B")
-            elif self.remaining_code[0]== "!<+!^+!B" :
-                self.buttn.left=False
-                self.buttn.up=False
-                self.buttn.B= False  #not (player.player_buttons.Y)
-                print("!<+!^+!B")
-
-            elif self.remaining_code[0]== "v+R" :
-                self.buttn.down=True
-                self.buttn.R= not (player.player_buttons.R)
-                print("v+R")
-            elif self.remaining_code[0]== "!v+!R" :
-                self.buttn.down=False
-                self.buttn.R= False  #not (player.player_buttons.Y)
-                print("!v+!R")
-
+            self.my_command.player2_buttons = self.buttn
+            
+        return self.my_command
+    
+    def _extract_features(self, game_state):
+        # Extract the 21 input features used during training with exact column names
+        p1 = game_state.player1
+        p2 = game_state.player2
+        
+        # Calculate p1_rel_x (relative x position) and facing opponent
+        p1_rel_x = p1.x_coord - p2.x_coord
+        p1_facing_opponent = 1 if p1_rel_x < 0 else 0
+        
+        # Extracting the features in the exact order and names as in gameData.csv
+        features = [
+            game_state.timer,                     # timer
+            p1.player_id,                        # p1_id (was causing error: using player_id instead of id)
+            p1.health,                           # p1_health
+            p1.x_coord,                          # p1_x
+            p1.y_coord,                          # p1_y
+            int(p1.is_jumping),                  # p1_jumping
+            int(p1.is_crouching),                # p1_crouching
+            int(p1.is_player_in_move),           # p1_in_move
+            p1.move_id,                          # p1_move_id
+            p2.player_id,                        # p2_id (was causing error: using player_id instead of id)
+            p2.health,                           # p2_health
+            p2.x_coord,                          # p2_x
+            p2.y_coord,                          # p2_y
+            int(p2.is_jumping),                  # p2_jumping
+            int(p2.is_crouching),                # p2_crouching
+            int(p2.is_player_in_move),           # p2_in_move
+            p2.move_id,                          # p2_move_id
+            p1_rel_x,                            # p1_rel_x
+            p1.y_coord - p2.y_coord,             # p1_rel_y
+            p1_facing_opponent,                  # p1_facing_opponent
+            p1.health - p2.health                # p1_health_diff
+        ]
+        
+        return features
+        
+    def _set_button_states(self, button_states):
+        # Reset all buttons to False first
+        self.buttn.up = False
+        self.buttn.down = False
+        self.buttn.left = False
+        self.buttn.right = False
+        self.buttn.A = False
+        self.buttn.B = False
+        self.buttn.X = False
+        self.buttn.Y = False
+        self.buttn.L = False
+        self.buttn.R = False
+        self.buttn.select = False
+        self.buttn.start = False
+        
+        # Set button states based on model predictions
+        # Order: [up, down, left, right, A, B, X, Y, L, R, select, start]
+        button_mapping = [
+            (0, 'up'), (1, 'down'), (2, 'left'), (3, 'right'),
+            (4, 'A'), (5, 'B'), (6, 'X'), (7, 'Y'),
+            (8, 'L'), (9, 'R'), (10, 'select'), (11, 'start')
+        ]
+        
+        for idx, attr_name in button_mapping:
+            if idx < len(button_states):
+                setattr(self.buttn, attr_name, bool(button_states[idx]))
+    
+    def _fallback_behavior(self, game_state):
+        """Basic fallback behavior if model prediction fails"""
+        p1 = game_state.player1
+        p2 = game_state.player2
+        
+        # Simple approach - move towards opponent if far, attack if close
+        if abs(p1.x_coord - p2.x_coord) > 50:
+            # Move towards opponent
+            if p1.x_coord < p2.x_coord:
+                self.buttn.right = True
             else:
-                if self.remaining_code[0] =="v" :
-                    self.buttn.down=True
-                    print ( "down" )
-                elif self.remaining_code[0] =="!v":
-                    self.buttn.down=False
-                    print ( "Not down" )
-                elif self.remaining_code[0] =="<" :
-                    print ( "left" )
-                    self.buttn.left=True
-                elif self.remaining_code[0] =="!<" :
-                    print ( "Not left" )
-                    self.buttn.left=False
-                elif self.remaining_code[0] ==">" :
-                    print ( "right" )
-                    self.buttn.right=True
-                elif self.remaining_code[0] =="!>" :
-                    print ( "Not right" )
-                    self.buttn.right=False
-
-                elif self.remaining_code[0] =="^" :
-                    print ( "up" )
-                    self.buttn.up=True
-                elif self.remaining_code[0] =="!^" :
-                    print ( "Not up" )
-                    self.buttn.up=False
-            self.remaining_code=self.remaining_code[1:]
-        return
+                self.buttn.left = True
+                
+            # Random jump sometimes
+            if np.random.random() < 0.1:
+                self.buttn.up = True
+        else:
+            # Close enough to attack - use a random attack button
+            attack_buttons = ['A', 'B', 'X', 'Y']
+            selected_button = np.random.choice(attack_buttons)
+            setattr(self.buttn, selected_button, True)
