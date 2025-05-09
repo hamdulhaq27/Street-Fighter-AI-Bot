@@ -34,7 +34,7 @@ In this project we developed an AI bot, that plays Street Fighter 2 Turbo on the
 - Operating System: 
     - Windows 7 or above (64-bit).
 - Python API:
-    - Made in version 3.6.3 
+    - Made in version 3.6.3. 
     - Version 3 and greater compaitable.
     - Libraries: pandas, tensorflow, scikit learn.
 - BizHawk emulator.
