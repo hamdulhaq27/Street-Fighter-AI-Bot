@@ -85,11 +85,11 @@ Then extract it to your desired directory.
 Sample CSV columns: timer,p1_id,p1_health,p1_x,p1_y,p1_jumping,p1_crouching,p1_in_move,p1_move_id,p2_id,p2_health,p2_x,p2_y,p2_jumping,p2_crouching,p2_in_move,p2_move_id,p1_rel_x,p1_rel_y,p1_facing_opponent,p1_health_diff,act_B,act_Y,act_X,act_A,act_L,act_R,act_Up,act_Down,act_Left,act_Right,act_Select,act_Start
 
 ## **Gameplay Images**
-<br>
+
 ![Image# 1](./Images/Image1.png)
-<br>
+
 ![Image# 2](./Images/Image2.png)
-<br>
+
 ![Image# 3](./Images/Image3.png)
-<br>
+
 ![Image# 4](./Images/Image4.png)
